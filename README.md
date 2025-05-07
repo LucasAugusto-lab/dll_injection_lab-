@@ -24,4 +24,4 @@
 
 ## 📚 Créditos
 
-Desenvolvido como prova de conceito para fins educacionais por Lucas, com suporte de IA.
+Desenvolvido como prova de conceito para fins educacionais por Lucas Augusto, com suporte de IA.
