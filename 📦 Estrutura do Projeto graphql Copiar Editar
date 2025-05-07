@@ -1,0 +1,8 @@
+dll_injection_lab/
+├── injector/
+│   ├── main.cpp              # Injetor com CreateRemoteThread + LoadLibraryA
+│   └── CMakeLists.txt        # Configuração para build com CMake
+├── test_dll/
+│   ├── dllmain.cpp           # DLL que exibe um MessageBox
+│   └── CMakeLists.txt
+├── run_injection.bat         # Script para compilar e executar o injetor
