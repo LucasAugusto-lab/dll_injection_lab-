@@ -1,0 +1,63 @@
+#include <windows.h>
+#include <tlhelp32.h>
+#include <iostream>
+
+DWORD GetProcessIdByName(const wchar_t* processName) {
+    DWORD processId = 0;
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hSnapshot != INVALID_HANDLE_VALUE) {
+        PROCESSENTRY32W pe;
+        pe.dwSize = sizeof(pe);
+        if (Process32FirstW(hSnapshot, &pe)) {
+            do {
+                if (_wcsicmp(pe.szExeFile, processName) == 0) {
+                    processId = pe.th32ProcessID;
+                    break;
+                }
+            } while (Process32NextW(hSnapshot, &pe));
+        }
+        CloseHandle(hSnapshot);
+    }
+    return processId;
+}
+
+int main() {
+    const wchar_t* targetProcess = L"notepad.exe";
+    const char* dllPath = "C:\\caminho\\para\\sua\\DLL.dll"; // caminho absoluto da DLL
+
+    DWORD pid = GetProcessIdByName(targetProcess);
+    if (!pid) {
+        std::cerr << "Processo não encontrado: " << targetProcess << "\n";
+        return 1;
+    }
+
+    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+    if (!hProcess) {
+        std::cerr << "Falha ao abrir processo\n";
+        return 1;
+    }
+
+    LPVOID remoteMemory = VirtualAllocEx(hProcess, nullptr, strlen(dllPath) + 1,
+                                         MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    if (!remoteMemory) {
+        std::cerr << "Erro ao alocar memória remota\n";
+        CloseHandle(hProcess);
+        return 1;
+    }
+
+    WriteProcessMemory(hProcess, remoteMemory, dllPath, strlen(dllPath) + 1, nullptr);
+
+    HANDLE hThread = CreateRemoteThread(hProcess, nullptr, 0,
+                                        (LPTHREAD_START_ROUTINE)LoadLibraryA,
+                                        remoteMemory, 0, nullptr);
+    if (!hThread) {
+        std::cerr << "Falha ao criar thread remota\n";
+    } else {
+        std::cout << "Injeção bem-sucedida!\n";
+        CloseHandle(hThread);
+    }
+
+    VirtualFreeEx(hProcess, remoteMemory, 0, MEM_RELEASE);
+    CloseHandle(hProcess);
+    return 0;
+}
