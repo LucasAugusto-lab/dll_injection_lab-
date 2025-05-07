@@ -25,10 +25,3 @@
 ## 📚 Créditos
 
 Desenvolvido como prova de conceito para fins educacionais por Lucas, com suporte de IA.
-"""
-
-readme_path = "/mnt/data/README_DLL_Injection_Lab.md"
-with open(readme_path, "w") as f:
-    f.write(readme_content)
-
-readme_path
