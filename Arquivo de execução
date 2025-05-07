@@ -1,0 +1,120 @@
+from pathlib import Path
+import zipfile
+
+# Estrutura dos arquivos
+project_structure = {
+    "dll_injection_lab/injector/main.cpp": """
+#include <windows.h>
+#include <tlhelp32.h>
+#include <iostream>
+
+DWORD GetProcessIdByName(const wchar_t* processName) {
+    DWORD processId = 0;
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hSnapshot != INVALID_HANDLE_VALUE) {
+        PROCESSENTRY32W pe;
+        pe.dwSize = sizeof(pe);
+        if (Process32FirstW(hSnapshot, &pe)) {
+            do {
+                if (_wcsicmp(pe.szExeFile, processName) == 0) {
+                    processId = pe.th32ProcessID;
+                    break;
+                }
+            } while (Process32NextW(hSnapshot, &pe));
+        }
+        CloseHandle(hSnapshot);
+    }
+    return processId;
+}
+
+int main() {
+    const wchar_t* targetProcess = L"notepad.exe";
+    const char* dllPath = "C:\\\\temp\\\\test_dll.dll"; // Caminho absoluto da DLL
+
+    DWORD pid = GetProcessIdByName(targetProcess);
+    if (!pid) {
+        std::cerr << "Processo não encontrado: " << targetProcess << "\\n";
+        return 1;
+    }
+
+    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+    if (!hProcess) {
+        std::cerr << "Falha ao abrir processo\\n";
+        return 1;
+    }
+
+    LPVOID remoteMemory = VirtualAllocEx(hProcess, nullptr, strlen(dllPath) + 1,
+                                         MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    if (!remoteMemory) {
+        std::cerr << "Erro ao alocar memória remota\\n";
+        CloseHandle(hProcess);
+        return 1;
+    }
+
+    WriteProcessMemory(hProcess, remoteMemory, dllPath, strlen(dllPath) + 1, nullptr);
+
+    HANDLE hThread = CreateRemoteThread(hProcess, nullptr, 0,
+                                        (LPTHREAD_START_ROUTINE)LoadLibraryA,
+                                        remoteMemory, 0, nullptr);
+    if (!hThread) {
+        std::cerr << "Falha ao criar thread remota\\n";
+    } else {
+        std::cout << "Injeção bem-sucedida!\\n";
+        CloseHandle(hThread);
+    }
+
+    VirtualFreeEx(hProcess, remoteMemory, 0, MEM_RELEASE);
+    CloseHandle(hProcess);
+    return 0;
+}
+""",
+    "dll_injection_lab/injector/CMakeLists.txt": """
+cmake_minimum_required(VERSION 3.10)
+project(injector)
+
+set(CMAKE_CXX_STANDARD 17)
+
+add_executable(injector main.cpp)
+""",
+    "dll_injection_lab/test_dll/dllmain.cpp": """
+#include <windows.h>
+
+BOOL APIENTRY DllMain(HMODULE hModule,
+                      DWORD  ul_reason_for_call,
+                      LPVOID lpReserved) {
+    switch (ul_reason_for_call) {
+    case DLL_PROCESS_ATTACH:
+        MessageBoxA(nullptr, "DLL injetada com sucesso!", "Teste", MB_OK | MB_ICONINFORMATION);
+        break;
+    }
+    return TRUE;
+}
+""",
+    "dll_injection_lab/test_dll/CMakeLists.txt": """
+cmake_minimum_required(VERSION 3.10)
+project(test_dll)
+
+set(CMAKE_CXX_STANDARD 17)
+
+add_library(test_dll SHARED dllmain.cpp)
+""",
+    "dll_injection_lab/run_injection.bat": """
+@echo off
+mkdir build
+cd build
+cmake ..
+cmake --build . --config Release
+echo.
+echo *** Lembre-se de copiar test_dll.dll para C:\\\\temp antes de executar o injector.exe ***
+pause
+""",
+}
+
+# Criar o arquivo ZIP
+zip_path = "/mnt/data/dll_injection_lab.zip"
+with zipfile.ZipFile(zip_path, 'w') as zipf:
+    for filepath, content in project_structure.items():
+        path = Path(filepath)
+        zipf.writestr(str(path), content)
+
+zip_path
